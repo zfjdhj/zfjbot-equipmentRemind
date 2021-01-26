@@ -91,7 +91,7 @@ async def check(bot=get_bot(), ev={}):
                         remind_list.append(item)
                     # 请求将要结束提醒
                     elif (
-                        0 <= int(time.time()) - item["create_time"] - 8 * 3600 <= 15 * 60 and item["donation_num"] < 10
+                        0 <= item["create_time"] + 8 * 3600 - int(time.time()) <= 15 * 60 and item["donation_num"] < 10
                     ):
                         remind_list.append(item)
                 else:
