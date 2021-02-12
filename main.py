@@ -124,9 +124,8 @@ async def check(bot=get_bot(), ev={}):
         # await bot.send_group_msg(group_id=618773789, message=f"[CQ:at,qq=320336328]\n{reply}")
     return remind_list
 
-# @sv.scheduled_job("interval", minutes=5)
-@sv.scheduled_job("cron", minute="*/1")
-# @sv.scheduled_job("interval", minutes=10)
+# @sv.scheduled_job("cron", minute="*/1")
+@sv.scheduled_job("interval", minutes=5)
 async def invite_auto(bot=get_bot(), ev={}):
     msg=""
     with open(os.path.join(plugin_path, "account.json")) as fp:
@@ -159,7 +158,7 @@ async def invite_auto(bot=get_bot(), ev={}):
     join_request_list = await client.callapi("/clan/join_request_list", clan_join_request_list_data)
     # print("join_request_list", join_request_list)
     reruest_list=[item["viewer_id"] for item in join_request_list["list"]]
-    print(reruest_list)
+    # print(reruest_list)
     for item in join_request_list["list"]:
         # 自动同意,想要启用自动同意取消注释即可,懒得写开关了
         # if item["viewer_id"] in white_list:
