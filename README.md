@@ -15,13 +15,16 @@ a plugin for hoshino
 ```json
 //account.json
 {
+    "account": "vx369207",
+    "password": "gr164037",
     "uid": "output.txt中的uid_long，数字格式",
     "access_key": "output.txt中的access_token",
     "platform": 2,
     "channel": 1,
     "group_id": 1234567,
-    "uid_white_list":[
-    ]
+    "white_list":[
+    ],
+    "admin": 12345678
 }
 ```
 
@@ -42,6 +45,11 @@ a plugin for hoshino
 | invite \<uid> | 有申请则通过,无申请则邀请 |
 | invite check | 查看白名单成员公会信息情况 |
 | invite onekeyaccept | 一键通过白名单,无申请则邀请 |
+| /pcrval <32位验证码数据> | 账号失效后过验证码 |
+
+## 更新
+
+2021.02.14 新增验证部分代码，冲冲佬yyds
 
 ## 感谢
 

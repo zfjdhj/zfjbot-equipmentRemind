@@ -5,7 +5,9 @@ from .pcrclient import *
 
 from hoshino import *
 from nonebot import *
-from hoshino import Service
+# from hoshino import Service
+
+from asyncio import Lock
 
 plugin_path = os.path.dirname(__file__)
 
@@ -24,8 +26,55 @@ with open(os.path.join(plugin_path, "equip_data.json"), "rb") as fp:
 
 with open(os.path.join(plugin_path, "account.json")) as fp:
     account_json = json.load(fp)
-    client = pcrclient(account_json)
+    acinfo = account_json
 
+
+captcha_lck = Lock()
+bot=get_bot()
+validate = None
+validating = False
+acfirst = False
+
+async def captchaVerifier(gt, challenge, userid):
+    global acfirst, validating
+    if not acfirst:
+        await captcha_lck.acquire()
+        acfirst = True
+    
+    if acinfo['admin'] == 0:
+        bot.logger.error('captcha is required while admin qq is not set, so the login can\'t continue')
+    else:
+        url = f"https://help.tencentbot.top/geetest/?captcha_type=1&challenge={challenge}&gt={gt}&userid={userid}&gs=1"
+        reply=f'猫猫遇到了一个问题呢，请完成以下链接中的验证内容后将第一行validate=后面的内容复制，并用指令/pcrval xxxx将内容发送给机器人完成验证\n验证链接：{url}'
+        await bot.send_private_msg(
+            user_id = acinfo['admin'],            
+            message ={reply} 
+        )
+        # 群内通知
+        await bot.send_group_msg(group_id=account_json["group_id"], message=f"[CQ:at,qq=320336328]\n{reply}")
+        # 群内通知
+        # await bot.send_group_msg(group_id=618773789, message=f"[CQ:at,qq=320336328]\n{reply}")
+    # message = f'pcr账号登录需要验证码，请完成以下链接中的验证内容后将第一行validate=后面的内容复制，并用指令/jjcval xxxx将内容发送给机器人完成验证\n验证链接：{url}'
+    validating = True
+    await captcha_lck.acquire()
+    validating = False
+    return validate
+
+async def errlogger(msg):
+    await bot.send_private_msg(
+        user_id = acinfo['admin'],
+        message = f'pcrjjc2登录错误：{msg}'
+    )
+
+bclient = bsdkclient(acinfo, captchaVerifier, errlogger)
+client = pcrclient(bclient)
+
+@sv.on_rex('/pcrval (.*)')
+async def validate(bot, ev):
+    global validate
+    if ev['user_id'] == acinfo['admin']:
+        validate = ev['match'].group(1)
+        captcha_lck.release()
 
 @sv.scheduled_job("interval", minutes=5)
 @sv.on_fullmatch("equip check")
