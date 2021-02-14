@@ -15,8 +15,8 @@ a plugin for hoshino
 ```json
 //account.json
 {
-    "account": "vx369207",
-    "password": "gr164037",
+    "account": "",
+    "password": "",
     "uid": "output.txt中的uid_long，数字格式",
     "access_key": "output.txt中的access_token",
     "platform": 2,
