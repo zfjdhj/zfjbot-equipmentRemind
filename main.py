@@ -48,11 +48,11 @@ async def captchaVerifier(gt, challenge, userid):
     else:
         url = f"https://help.tencentbot.top/geetest/?captcha_type=1&challenge={challenge}&gt={gt}&userid={userid}&gs=1"
         reply = f"猫猫遇到了一个问题呢，请完成以下链接中的验证内容后将第一行validate=后面的内容复制，并用指令/pcrval xxxx将内容发送给机器人完成验证\n验证链接：{url}"
-        await bot.send_private_msg(user_id=acinfo["admin"], message=reply)
+        await bot.send_private_msg(user_id=acinfo["admin"], message=f"{reply}")
         # 群内通知
         await bot.send_group_msg(group_id=account_json["group_id"], message=f"[CQ:at,qq=320336328]\n{reply}")
         # 群内通知
-        # await bot.send_group_msg(group_id=618773789, message=f"[CQ:at,qq=320336328]\n{reply}")
+        await bot.send_group_msg(group_id=618773789, message=f"[CQ:at,qq=320336328]\n{reply}")
     # message = f'pcr账号登录需要验证码，请完成以下链接中的验证内容后将第一行validate=后面的内容复制，并用指令/jjcval xxxx将内容发送给机器人完成验证\n验证链接：{url}'
     validating = True
     await captcha_lck.acquire()
@@ -77,10 +77,12 @@ async def validate(bot, ev):
 
 
 @sv.scheduled_job("interval", minutes=5)
+# @sv.scheduled_job("cron", minute="*/1")
 @sv.on_fullmatch("equip check")
 async def check(bot=get_bot(), ev={}):
     while client.shouldLogin:
         await client.login()
+
     if os.path.exists(plugin_path + "/data.json"):
         with open(plugin_path + "/data.json", "rb") as f:
             data_save = json.loads(f.read())
@@ -138,9 +140,9 @@ async def check(bot=get_bot(), ev={}):
     if not ev:
         if data_save != {}:
             for item in result:
-                if data_save["users"].get(str(item["viewer_id"])):
+                if data_save.get(str(item["viewer_id"])):
                     # 新请求提醒
-                    if data_save["users"][str(item["viewer_id"])]["create_time"] != item["create_time"]:
+                    if data_save[str(item["viewer_id"])]["create_time"] != item["create_time"]:
                         remind_list.append(item)
                     # 请求将要结束提醒
                     elif (
@@ -156,7 +158,7 @@ async def check(bot=get_bot(), ev={}):
         for item in result:
             remind_list.append(item)
     for item in result:
-        data_save["users"][item["viewer_id"]] = item
+        data_save[item["viewer_id"]] = item
     # print(remind_list)
     reply = ""
     for i in range(len(remind_list)):
