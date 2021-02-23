@@ -140,9 +140,9 @@ async def check(bot=get_bot(), ev={}):
     if not ev:
         if data_save != {}:
             for item in result:
-                if data_save.get(str(item["viewer_id"])):
+                if data_save["users"].get(str(item["viewer_id"])):
                     # 新请求提醒
-                    if data_save[str(item["viewer_id"])]["create_time"] != item["create_time"]:
+                    if data_save["users"][str(item["viewer_id"])]["create_time"] != item["create_time"]:
                         remind_list.append(item)
                     # 请求将要结束提醒
                     elif (
@@ -158,7 +158,7 @@ async def check(bot=get_bot(), ev={}):
         for item in result:
             remind_list.append(item)
     for item in result:
-        data_save[item["viewer_id"]] = item
+        data_save["users"][str(item["viewer_id"])] = item
     # print(remind_list)
     reply = ""
     for i in range(len(remind_list)):
@@ -172,7 +172,7 @@ async def check(bot=get_bot(), ev={}):
         await bot.send(ev, f"{reply}", at_sender=True)
     elif reply:
         await bot.send_group_msg(group_id=account_json["group_id"], message=f"[CQ:at,qq=320336328]\n{reply}")
-        # await bot.send_group_msg(group_id=618773789, message=f"[CQ:at,qq=320336328]\n{reply}")
+        await bot.send_group_msg(group_id=618773789, message=f"[CQ:at,qq=320336328]\n{reply}")
     return remind_list
 
 
@@ -253,8 +253,8 @@ async def invite_auto(bot=get_bot(), ev={}):
     if ev:
         await bot.send(ev, f"{msg}", at_sender=True)
     elif msg:
-        # await bot.send_group_msg(group_id=account_json["group_id"], message=f"[CQ:at,qq=320336328]\n{reply}")
-        await bot.send_group_msg(group_id="426770092", message=f"[CQ:at,qq=320336328]\n{msg}")
+        await bot.send_group_msg(group_id=account_json["group_id"], message=f"[CQ:at,qq=320336328]\n{msg}")
+        # await bot.send_group_msg(group_id="426770092", message=f"[CQ:at,qq=320336328]\n{msg}")
     # 自动邀请,鸽了
     return
 

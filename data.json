@@ -5,8 +5,8 @@
             "name": "A.纸欣",
             "equip_id": 124103,
             "request_num": 10,
-            "donation_num": 0,
-            "create_time": 1613544371
+            "donation_num": 10,
+            "create_time": 1614086413
         },
         "1167771312319": {
             "viewer_id": 1167771312319,
@@ -14,23 +14,15 @@
             "equip_id": 124163,
             "request_num": 10,
             "donation_num": 10,
-            "create_time": 1613613515
+            "create_time": 1614086940
         },
         "1395631942719": {
             "viewer_id": 1395631942719,
             "name": "纸飞机.T",
-            "equip_id": 114461,
+            "equip_id": 124163,
             "request_num": 10,
             "donation_num": 10,
-            "create_time": 1613613731
-        },
-        "1303077214744": {
-            "viewer_id": 1303077214744,
-            "name": "藏剑恺乐",
-            "equip_id": 124103,
-            "request_num": 10,
-            "donation_num": 0,
-            "create_time": 1613615118
+            "create_time": 1614087184
         }
     },
     "invite_list": {
