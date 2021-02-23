@@ -1,1 +1,42 @@
-{"users": {"1043975365121": {"viewer_id": 1043975365121, "name": "A.纸欣", "equip_id": 124103, "request_num": 10, "donation_num": 0, "create_time": 1613544371}, "1167771312319": {"viewer_id": 1167771312319, "name": "纸飞机", "equip_id": 124163, "request_num": 10, "donation_num": 10, "create_time": 1613613515}, "1395631942719": {"viewer_id": 1395631942719, "name": "纸飞机.T", "equip_id": 114461, "request_num": 10, "donation_num": 10, "create_time": 1613613731}, "1303077214744": {"viewer_id": 1303077214744, "name": "藏剑恺乐", "equip_id": 124103, "request_num": 10, "donation_num": 0, "create_time": 1613615118}, "1303077214744": {"viewer_id": 1303077214744, "name": "藏剑恺乐", "equip_id": 124163, "request_num": 10, "donation_num": 0, "create_time": 1613691252}}, "invite_list": {"1167771312319": {"create_time": 1613041680, "old": false}}}
+{
+    "users": {
+        "1043975365121": {
+            "viewer_id": 1043975365121,
+            "name": "A.纸欣",
+            "equip_id": 124103,
+            "request_num": 10,
+            "donation_num": 0,
+            "create_time": 1613544371
+        },
+        "1167771312319": {
+            "viewer_id": 1167771312319,
+            "name": "纸飞机",
+            "equip_id": 124163,
+            "request_num": 10,
+            "donation_num": 10,
+            "create_time": 1613613515
+        },
+        "1395631942719": {
+            "viewer_id": 1395631942719,
+            "name": "纸飞机.T",
+            "equip_id": 114461,
+            "request_num": 10,
+            "donation_num": 10,
+            "create_time": 1613613731
+        },
+        "1303077214744": {
+            "viewer_id": 1303077214744,
+            "name": "藏剑恺乐",
+            "equip_id": 124103,
+            "request_num": 10,
+            "donation_num": 0,
+            "create_time": 1613615118
+        }
+    },
+    "invite_list": {
+        "1167771312319": {
+            "create_time": 1613041680,
+            "old": false
+        }
+    }
+}
