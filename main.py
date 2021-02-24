@@ -26,19 +26,18 @@ with open(os.path.join(plugin_path, "equip_data.json"), "rb") as fp:
         equip_data_dict[item["equipmentId"]] = item["equipmentName"]
 
 with open(os.path.join(plugin_path, "account.json")) as fp:
-    account_json = json.load(fp)
-    acinfo = account_json
+    acinfo = json.load(fp)
+    account_json = acinfo
 
-
+client = None
 captcha_lck = Lock()
 bot = get_bot()
 validate = None
-validating = False
 acfirst = False
 
 
 async def captchaVerifier(gt, challenge, userid):
-    global acfirst, validating
+    global acfirst
     if not acfirst:
         await captcha_lck.acquire()
         acfirst = True
@@ -50,18 +49,18 @@ async def captchaVerifier(gt, challenge, userid):
         reply = f"猫猫遇到了一个问题呢，请完成以下链接中的验证内容后将第一行validate=后面的内容复制，并用指令/pcrval xxxx将内容发送给机器人完成验证\n验证链接：{url}"
         await bot.send_private_msg(user_id=acinfo["admin"], message=f"{reply}")
         # 群内通知
-        await bot.send_group_msg(group_id=account_json["group_id"], message=f"[CQ:at,qq=320336328]\n{reply}")
+        await bot.send_group_msg(
+            group_id=account_json["group_id"], message=f"[CQ:at,qq={account_json['admin']}]\n{reply}"
+        )
         # 群内通知
-        await bot.send_group_msg(group_id=618773789, message=f"[CQ:at,qq=320336328]\n{reply}")
+        # await bot.send_group_msg(group_id=618773789, message=f"[CQ:at,qq={account_json['admin']}]\n{reply}")
     # message = f'pcr账号登录需要验证码，请完成以下链接中的验证内容后将第一行validate=后面的内容复制，并用指令/jjcval xxxx将内容发送给机器人完成验证\n验证链接：{url}'
-    validating = True
     await captcha_lck.acquire()
-    validating = False
     return validate
 
 
 async def errlogger(msg):
-    await bot.send_private_msg(user_id=acinfo["admin"], message=f"pcrjjc2登录错误：{msg}")
+    await bot.send_private_msg(user_id=acinfo["admin"], message=f"猫猫登录错误：{msg}")
 
 
 bclient = bsdkclient(acinfo, captchaVerifier, errlogger)
@@ -71,9 +70,9 @@ client = pcrclient(bclient)
 @sv.on_rex("/pcrval (.*)")
 async def validate(bot, ev):
     global validate
-    if ev["user_id"] == acinfo["admin"]:
-        validate = ev["match"].group(1)
-        captcha_lck.release()
+    # if ev["user_id"] == acinfo["admin"]:
+    validate = ev["match"].group(1)
+    captcha_lck.release()
 
 
 @sv.scheduled_job("interval", minutes=5)
@@ -171,13 +170,14 @@ async def check(bot=get_bot(), ev={}):
     if ev:
         await bot.send(ev, f"{reply}", at_sender=True)
     elif reply:
-        await bot.send_group_msg(group_id=account_json["group_id"], message=f"[CQ:at,qq=320336328]\n{reply}")
-        await bot.send_group_msg(group_id=618773789, message=f"[CQ:at,qq=320336328]\n{reply}")
+        await bot.send_group_msg(
+            group_id=account_json["group_id"], message=f"[CQ:at,qq={account_json['admin']}]\n{reply}"
+        )
+        await bot.send_group_msg(group_id=618773789, message=f"[CQ:at,qq={account_json['admin']}]\n{reply}")
+    await invite_auto()
     return remind_list
 
 
-# @sv.scheduled_job("cron", minute="*/1")
-@sv.scheduled_job("interval", minutes=5)
 async def invite_auto(bot=get_bot(), ev={}):
     msg = ""
     with open(os.path.join(plugin_path, "account.json")) as fp:
@@ -253,16 +253,16 @@ async def invite_auto(bot=get_bot(), ev={}):
     if ev:
         await bot.send(ev, f"{msg}", at_sender=True)
     elif msg:
-        await bot.send_group_msg(group_id=account_json["group_id"], message=f"[CQ:at,qq=320336328]\n{msg}")
-        # await bot.send_group_msg(group_id="426770092", message=f"[CQ:at,qq=320336328]\n{msg}")
+        await bot.send_group_msg(
+            group_id=account_json["group_id"], message=f"[CQ:at,qq={account_json['admin']}]\n{msg}"
+        )
+        await bot.send_group_msg(group_id=618773789, message=f"[CQ:at,qq={account_json['admin']}]\n{msg}")
     # 自动邀请,鸽了
     return
 
 
 async def invite(uid: str) -> str:
     # 确认正确的uid
-    while client.shouldLogin:
-        await client.login()
     is_accept = False
     res = ""
     # if uid in white_list:
@@ -328,14 +328,14 @@ async def invite(uid: str) -> str:
             if not int(uid) in new_invite_user_list:
                 clan_invite_data = {
                     "invited_viewer_id": int(uid),
-                    "invite_message": "猫猫邀请你加入哦",
+                    "invite_message": "猫猫邀请您加入公会一起玩耍哦",
                     "viewer_id": client.viewer_id,
                 }
                 clan_invite = await client.callapi("/clan/invite", clan_invite_data)
                 # print("clan_invite:", clan_invite)
                 res = f"猫猫已经对{user_info['user_info']['user_name']}发起公会邀请"
             else:
-                res = f"猫猫之前已经发起了邀请,但是{user_info['user_info']['user_name']}没有理猫猫"
+                res = f"猫猫之前已经发起了邀请,但是{user_info['user_info']['user_name']}没有理睬猫猫"
     return res
 
 
@@ -351,11 +351,9 @@ async def invite_check():
             "/profile/get_profile", {"target_viewer_id": item, "viewer_id": client.viewer_id}
         )
         if user_info["clan_name"] != "":
-            res += f"\n{user_info['user_info']['user_name']}已加入公会{user_info['clan_name']}"
+            res += f"\n{user_info['user_info']['user_name']}已加入公会：{user_info['clan_name']}"
         else:
             res += f"\n{user_info['user_info']['user_name']}尚未加入任何公会"
-    while client.shouldLogin:
-        await client.login()
     clan_info_data = {
         "clan_id": 0,
         "get_user_equip": 1,
@@ -399,6 +397,8 @@ async def invite_main(bot=get_bot(), ev={}):
     if len(args) == 0:
         msg = f"猫猫不懂耶~\n可用命令：\n{HELP_MSG}"
     elif len(args) == 1:
+        while client.shouldLogin:
+            await client.login()
         if len(args[0]) == 13:
             if is_admin:
                 msg = await invite(args[0])
