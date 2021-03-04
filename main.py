@@ -41,20 +41,11 @@ async def captchaVerifier(gt, challenge, userid):
     if not acfirst:
         await captcha_lck.acquire()
         acfirst = True
-
-    if acinfo["admin"] == 0:
-        bot.logger.error("captcha is required while admin qq is not set, so the login can't continue")
-    else:
-        url = f"https://help.tencentbot.top/geetest/?captcha_type=1&challenge={challenge}&gt={gt}&userid={userid}&gs=1"
-        reply = f"猫猫遇到了一个问题呢，请完成以下链接中的验证内容后将第一行validate=后面的内容复制，并用指令/pcrval xxxx将内容发送给机器人完成验证\n验证链接：{url}"
-        await bot.send_private_msg(user_id=acinfo["admin"], message=f"{reply}")
-        # 群内通知
-        await bot.send_group_msg(
-            group_id=account_json["group_id"], message=f"[CQ:at,qq={account_json['admin']}]\n{reply}"
-        )
-        # 群内通知
-        # await bot.send_group_msg(group_id=618773789, message=f"[CQ:at,qq={account_json['admin']}]\n{reply}")
-    # message = f'pcr账号登录需要验证码，请完成以下链接中的验证内容后将第一行validate=后面的内容复制，并用指令/jjcval xxxx将内容发送给机器人完成验证\n验证链接：{url}'
+    url = f"http://pcr.zfjdhj.cn/geetest/captcha/?captcha_type=1&challenge={challenge}&gt={gt}&userid={userid}&gs=1"
+    reply = f"猫猫遇到了一个问题呢，请完成以下链接中的验证内容后将第一行validate=后面的内容复制，并用指令/pcrval xxxx将内容发送给机器人完成验证\n验证链接：{url}"
+    await bot.send_private_msg(user_id=acinfo["admin"], message=f"{reply}")
+    # 群内通知
+    await bot.send_group_msg(group_id=account_json["group_id"], message=f"[CQ:at,qq={account_json['admin']}]\n{reply}")
     await captcha_lck.acquire()
     return validate
 
@@ -70,13 +61,11 @@ client = pcrclient(bclient)
 @sv.on_rex("/pcrval (.*)")
 async def validate(bot, ev):
     global validate
-    # if ev["user_id"] == acinfo["admin"]:
     validate = ev["match"].group(1)
     captcha_lck.release()
 
 
 @sv.scheduled_job("interval", minutes=5)
-# @sv.scheduled_job("cron", minute="*/1")
 @sv.on_fullmatch("equip check")
 async def check(bot=get_bot(), ev={}):
     while client.shouldLogin:
@@ -161,14 +150,14 @@ async def check(bot=get_bot(), ev={}):
     # print(remind_list)
     reply = ""
     for i in range(len(remind_list)):
-        reply += f"{remind_list[i]['name']}请求装备:{equip_data_dict[remind_list[i]['equip_id']]}\n目前捐助：{remind_list[i]['donation_num']}/{remind_list[i]['request_num']}\n结束时间：{time.strftime('%H:%M:%S',time.localtime(int(remind_list[i]['create_time'])+8*3600))}"
+        reply += f"{remind_list[i]['name']}请求装备:{equip_data_dict[remind_list[i]['equip_id']]}\n目前捐助：{remind_list[i]['donation_num']}/{remind_list[i]['request_num']}\n结束时间：{time.strftime('%H:%M:%S',time.localtime(int(remind_list[i]['create_time'])+8*3600))}\n=============="
         if i != len(remind_list) - 1:
             reply += "\n"
     # 写入文件
     with open(plugin_path + "/data.json", "w", encoding="utf8") as f:
         json.dump(data_save, f, ensure_ascii=False)
     if ev:
-        await bot.send(ev, f"{reply}", at_sender=True)
+        await bot.send(ev, f"[CQ:at,qq={account_json['admin']}]\n{reply}")
     elif reply:
         await bot.send_group_msg(
             group_id=account_json["group_id"], message=f"[CQ:at,qq={account_json['admin']}]\n{reply}"
