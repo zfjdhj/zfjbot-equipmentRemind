@@ -1,23 +1,28 @@
+import asyncio
 import json
 import os
 import time
+from typing import Tuple
 from .pcrclient import *
-
+import math
 from hoshino import *
 from nonebot import *
-
-# from hoshino import Service
-
 from asyncio import Lock
 
 plugin_path = os.path.dirname(__file__)
 
-
+client = None
+captcha_lck = Lock()
+bot = get_bot()
+validate = None
+acfirst = False
+auto_donation = True
 sv = Service("zfjbot-equipmentRemind", enable_on_default=False)
 HELP_MSG = """invite <13位uid>: 有申请则通过,无申请则邀请
 invite check: 查看白名单玩家信息
 invite onekeyaccept: 一键通过白名单,无申请则邀请
 """
+
 
 with open(os.path.join(plugin_path, "equip_data.json"), "rb") as fp:
     equip_data_json = json.load(fp)
@@ -29,24 +34,20 @@ with open(os.path.join(plugin_path, "account.json")) as fp:
     acinfo = json.load(fp)
     account_json = acinfo
 
-client = None
-captcha_lck = Lock()
-bot = get_bot()
-validate = None
-acfirst = False
 
-
-async def captchaVerifier(gt, challenge, userid):
+async def captchaVerifier(gt, challenge, userid, account):
     global acfirst
     if not acfirst:
         await captcha_lck.acquire()
         acfirst = True
-    url = f"http://pcr.zfjdhj.cn/geetest/captcha/?captcha_type=1&challenge={challenge}&gt={gt}&userid={userid}&gs=1"
-    reply = f"猫猫遇到了一个问题呢，请完成以下链接中的验证内容后将第一行validate=后面的内容复制，并用指令/pcrval xxxx将内容发送给机器人完成验证\n验证链接：{url}"
+    url = (
+        f"http://pcr.zfjdhj.cn防止腾讯检测/geetest/captcha/?captcha_type=1&challenge={challenge}&gt={gt}&userid={userid}&gs=1"
+    )
+    reply = f"猫猫({account})遇到了一个问题呢，请完成以下链接中的验证内容后将第一行validate=后面的内容复制，并用指令/pcrval xxxx将内容发送给机器人完成验证\n验证链接：{url}"
+    await captcha_lck.acquire()
     await bot.send_private_msg(user_id=acinfo["admin"], message=f"{reply}")
     # 群内通知
     await bot.send_group_msg(group_id=account_json["group_id"], message=f"[CQ:at,qq={account_json['admin']}]\n{reply}")
-    await captcha_lck.acquire()
     return validate
 
 
@@ -54,8 +55,14 @@ async def errlogger(msg):
     await bot.send_private_msg(user_id=acinfo["admin"], message=f"猫猫登录错误：{msg}")
 
 
-bclient = bsdkclient(acinfo, captchaVerifier, errlogger)
-client = pcrclient(bclient)
+acinfo_tmp = {
+    "account": account_json["farmers"]["acmm"],
+    "password": account_json["farmers"]["pwmm"],
+    "platform": 2,
+    "channel": 1,
+}
+mbclient = bsdkclient(acinfo_tmp, captchaVerifier, errlogger, account_json["farmers"]["acmm"])
+mclient = pcrclient(mbclient)
 
 
 @sv.on_rex("/pcrval (.*)")
@@ -63,14 +70,12 @@ async def validate(bot, ev):
     global validate
     validate = ev["match"].group(1)
     captcha_lck.release()
+    await bot.send(ev, f"验证码设置为{validate}")
 
 
-@sv.scheduled_job("interval", minutes=5)
-@sv.on_fullmatch("equip check")
-async def check(bot=get_bot(), ev={}):
+async def check(client, ev) -> str:
     while client.shouldLogin:
         await client.login()
-
     if os.path.exists(plugin_path + "/data.json"):
         with open(plugin_path + "/data.json", "rb") as f:
             data_save = json.loads(f.read())
@@ -121,6 +126,8 @@ async def check(bot=get_bot(), ev={}):
                                 "request_num": equip_request["request_num"],
                                 "donation_num": equip_request["donation_num"],
                                 "create_time": chat_message["create_time"],
+                                "message_id": chat_message["message_id"],
+                                "user_donation_num": equip_request["user_donation_num"],
                             }
                         )
     # print(result)
@@ -137,6 +144,9 @@ async def check(bot=get_bot(), ev={}):
                         0 <= item["create_time"] + 8 * 3600 - int(time.time()) <= 15 * 60 and item["donation_num"] < 10
                     ):
                         remind_list.append(item)
+                    # 未完成自动捐助
+                    elif item["donation_num"] < 10 and auto_donation:
+                        remind_list.append(item)
                 else:
                     remind_list.append(item)
         else:
@@ -144,7 +154,12 @@ async def check(bot=get_bot(), ev={}):
                 remind_list.append(item)
     else:
         for item in result:
-            remind_list.append(item)
+            if auto_donation:
+                if item["donation_num"] < 10:
+                    remind_list.append(item)
+            else:
+                remind_list.append(item)
+            # remind_list.append(item)
     for item in result:
         data_save["users"][str(item["viewer_id"])] = item
     # print(remind_list)
@@ -156,18 +171,199 @@ async def check(bot=get_bot(), ev={}):
     # 写入文件
     with open(plugin_path + "/data.json", "w", encoding="utf8") as f:
         json.dump(data_save, f, ensure_ascii=False)
+    print("info: remind_list", remind_list)
+    return remind_list, reply
+
+
+reply = ""
+
+
+async def equip_main(index, ev, mclient) -> Tuple[int, str]:
+    """
+    0: success，继续装备捐助
+    1: error，暂停装备捐助
+    2: info，继续装备捐助
+    """
+    reply = ""
+    equip_requests, equip_req_list = await check(mclient, ev)
     if ev:
-        await bot.send(ev, f"[CQ:at,qq={account_json['admin']}]\n{reply}")
-    elif reply:
-        await bot.send_group_msg(
-            group_id=account_json["group_id"], message=f"[CQ:at,qq={account_json['admin']}]\n{reply}"
+        return 0, equip_req_list
+    if len(equip_requests) == 0:
+        return 2, f"当前暂无装备请求"
+    ac = account_json["farmers"][f"ac{index}"]
+    pw = account_json["farmers"][f"pw{index}"]
+    acinfo_tmp = {
+        "account": ac,
+        "password": pw,
+        "platform": 2,
+        "channel": 1,
+    }
+    bclient = bsdkclient(acinfo_tmp, captchaVerifier, errlogger, ac)
+    client = pcrclient(bclient)
+
+    while client.shouldLogin:
+        await client.login()
+    # 获取今日已捐助数量
+    # https://le1-prod-all-gs-gzlj.bilibiligame.net/home/index
+    home_index = await client.callapi(
+        "/home/index", {"message_id": 1, "tips_id_list": [], "is_first": 1, "gold_history": 0}
+    )
+    donation_num = home_index["user_clan"]["donation_num"]
+    if donation_num == 10:
+        return 1, f"今日捐助已达7次或者序列出错"
+    equip_requests = (await check(client, ev))[0]
+    equip_request = equip_requests[0]
+    print(equip_request)
+    equip_id = equip_request["equip_id"]
+    load_index = await client.callapi("/load/index", {"carrier": "OPPO"})
+    current_equip_num = 0
+    for item in load_index["user_equip"]:
+        if item["id"] == equip_id:
+            print(f"{index}当前碎片数量：", item["stock"])
+            current_equip_num = item["stock"]
+            break
+    if not current_equip_num:
+        return 1, f"僚机{index}号碎片不足,暂停捐助"
+    if current_equip_num < 2:
+        return 1, f"僚机{index}号碎片不足2件，暂停捐助"
+    user_donation_num = equip_request["user_donation_num"]
+    if user_donation_num == 2:
+        return 2, f"僚机{index}号已捐助当前装备"
+    request = {
+        "clan_id": 497375,
+        "message_id": equip_request["message_id"],
+        "donation_num": 2 - user_donation_num,
+        "current_equip_num": current_equip_num,
+        "viewer_id": client.viewer_id,
+    }
+    await client.callapi("/equipment/donate", request)
+    reply = f"僚机{index}号捐助2片(剩余{current_equip_num-2})"
+    return 0, reply if reply else ""
+
+
+async def pcrf_equip_check(index: str) -> Tuple[str, str]:
+    ac = account_json["farmers"][f"ac{index}"]
+    pw = account_json["farmers"][f"pw{index}"]
+    acinfo = {
+        "account": ac,
+        "password": pw,
+        "platform": 2,
+        "channel": 1,
+    }
+    bclient = bsdkclient(acinfo, captchaVerifier, errlogger, ac)
+    client = pcrclient(bclient)
+
+    while client.shouldLogin:
+        await client.login()
+    home_index = await client.callapi(
+        "/home/index", {"message_id": 1, "tips_id_list": [], "is_first": 1, "gold_history": 0}
+    )
+    donation_num = home_index["user_clan"]["donation_num"]
+    print(f"{index}已捐({donation_num}/10)")
+    return index, donation_num
+
+
+@sv.scheduled_job("interval", minutes=1)
+# @sv.scheduled_job("interval", seconds=30)
+@sv.on_fullmatch("equip check")
+async def equip_check(bot=get_bot(), ev={}):
+    global auto_donation, reply, captcha_lck
+    while mclient.shouldLogin:
+        await mclient.login()
+    qq_reply = (await check(mclient, ev))[1]
+    if not auto_donation:
+        res = await pcrf_equip_check("01")
+        if res[1] == 0:
+            auto_donation = True
+    if auto_donation and qq_reply and not captcha_lck.locked():
+        # 获取今日剩余装备可捐数量
+        tasks = []
+        loop = asyncio.get_event_loop()
+        for i in range(1, 8):
+            if i < 10:
+                index = f"0{i}"
+            else:
+                index = f"{i}"
+            tasks.append(loop.create_task(pcrf_equip_check(index)))
+        res = await asyncio.wait(tasks)
+        loop.close
+        equip_dict = {}
+        equip_num = 0
+        for item in res[0]:
+            equip_num += item.result()[1]
+            equip_dict[item.result()[0]] = item.result()[1]
+        left_equip_dict_sort = sorted(equip_dict, key=lambda x: equip_dict[x])
+        if equip_num == 70:
+            today_index = 7
+            auto_donation = False
+        else:
+            today_index = int(math.ceil(equip_num / 10))
+            print(left_equip_dict_sort)
+            for item in left_equip_dict_sort:
+                code, msg = await equip_main(item, ev, mclient)
+                if code == 0:
+                    print(f"success: {msg}")
+                if code == 1:
+                    print(f"error: {msg}")
+                    auto_donation = False
+                    reply += f"\nerror: {msg}"
+                    break
+                if code == 2:
+                    if msg == "当前暂无装备请求":
+                        break
+                    print(f"info: {msg}")
+                if msg != "":
+                    reply += f"\ninfo: {msg}"
+        print("reply:", reply)
+        if reply:
+            qq_reply += f"{reply}"
+        reply = ""
+    if ev:
+        auto_donation = False
+        code, msg = await equip_main("01", ev, mclient)
+        if code == 0:
+            qq_reply = msg
+        auto_donation = True
+        qq_reply = msg
+        tasks = []
+        loop = asyncio.get_event_loop()
+        for i in range(1, 8):
+            if i < 10:
+                index = f"0{i}"
+            else:
+                index = f"{i}"
+            tasks.append(loop.create_task(pcrf_equip_check(index)))
+        res = await asyncio.wait(tasks)
+        equip_num = 0
+        for item in res[0]:
+            # print(item)
+            # print(f"{item.result()[0]}已捐({item.result()[1]}/10)")
+            equip_num += item.result()[1]
+            qq_reply += f"\n僚机{item.result()[0]}号已捐({item.result()[1]}/10)"
+        today_index = int(math.ceil(equip_num / 10))
+        if captcha_lck.locked():
+            qq_reply += f"\n有账号登录失败！！！"
+            auto_donation = False
+        await bot.send(
+            ev,
+            f"[CQ:at,qq={account_json['admin']}]\n{qq_reply}\n自动捐助系统：{auto_donation} ({today_index}/7)",
         )
-        await bot.send_group_msg(group_id=618773789, message=f"[CQ:at,qq={account_json['admin']}]\n{reply}")
-    await invite_auto()
-    return remind_list
+    elif qq_reply:
+        qq_reply = f"{qq_reply}\n自动捐助系统：{auto_donation} ({today_index+1  if today_index+1 < 8 else 7}/7)"
+        await bot.send_group_msg(group_id=account_json["group_id"], message=qq_reply)
+        # await bot.send_group_msg(group_id=618773789, message=qq_reply)
+    print(f"自动捐助系统：{auto_donation}")
+    await invite_auto(client=mclient)
 
 
-async def invite_auto(bot=get_bot(), ev={}):
+@sv.on_fullmatch("equip auto")
+async def equip_auto_on(bot, ev):
+    global auto_donation
+    auto_donation = not auto_donation
+    await bot.send(ev, f"auto_donation is {auto_donation}")
+
+
+async def invite_auto(client: pcrclient, bot=get_bot(), ev={}):
     msg = ""
     with open(os.path.join(plugin_path, "account.json")) as fp:
         config_json = json.load(fp)
@@ -199,7 +395,8 @@ async def invite_auto(bot=get_bot(), ev={}):
     join_request_list = await client.callapi("/clan/join_request_list", clan_join_request_list_data)
     # print("join_request_list", join_request_list)
     reruest_list = [item["viewer_id"] for item in join_request_list["list"]]
-    # print(reruest_list)
+
+    print(f"info: 入会请求列表{reruest_list}")
     for item in join_request_list["list"]:
         # 自动同意,想要启用自动同意取消注释即可,懒得写开关了
         # if item["viewer_id"] in white_list:
@@ -245,12 +442,12 @@ async def invite_auto(bot=get_bot(), ev={}):
         await bot.send_group_msg(
             group_id=account_json["group_id"], message=f"[CQ:at,qq={account_json['admin']}]\n{msg}"
         )
-        await bot.send_group_msg(group_id=618773789, message=f"[CQ:at,qq={account_json['admin']}]\n{msg}")
+        # await bot.send_group_msg(group_id=618773789, message=f"[CQ:at,qq={account_json['admin']}]\n{msg}")
     # 自动邀请,鸽了
     return
 
 
-async def invite(uid: str) -> str:
+async def invite(client: pcrclient, uid: str) -> str:
     # 确认正确的uid
     is_accept = False
     res = ""
@@ -328,7 +525,7 @@ async def invite(uid: str) -> str:
     return res
 
 
-async def invite_check():
+async def invite_check(client: pcrclient):
     with open(os.path.join(plugin_path, "account.json")) as fp:
         config_json = json.load(fp)
     white_list = config_json["white_list"]
@@ -364,7 +561,7 @@ async def invite_check():
     return res
 
 
-async def invite_onekeyaccept():
+async def invite_onekeyaccept(client: pcrclient):
     with open(os.path.join(plugin_path, "account.json")) as fp:
         config_json = json.load(fp)
     white_list = config_json["white_list"]
@@ -386,18 +583,18 @@ async def invite_main(bot=get_bot(), ev={}):
     if len(args) == 0:
         msg = f"猫猫不懂耶~\n可用命令：\n{HELP_MSG}"
     elif len(args) == 1:
-        while client.shouldLogin:
-            await client.login()
+        while mclient.shouldLogin:
+            await mclient.login()
         if len(args[0]) == 13:
             if is_admin:
-                msg = await invite(args[0])
+                msg = await invite(mclient, args[0])
             else:
                 msg = f"猫猫不懂耶~\n可用命令：\n{HELP_MSG}"
         elif args[0] == "check":
-            msg = await invite_check()
+            msg = await invite_check(mclient)
             pass
         elif args[0] == "onekeyaccept":
-            msg = await invite_onekeyaccept()
+            msg = await invite_onekeyaccept(mclient)
             pass
         else:
             msg = f"猫猫不懂耶~\n可用命令：\n{HELP_MSG}"

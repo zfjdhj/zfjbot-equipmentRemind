@@ -53,17 +53,18 @@ class bsdkclient:
     }
     """
 
-    def __init__(self, acccountinfo, captchaVerifier, errlogger):
+    def __init__(self, acccountinfo, captchaVerifier, errlogger, account):
         self.account = acccountinfo["account"]
         self.pwd = acccountinfo["password"]
         self.platform = acccountinfo["platform"]
         self.channel = acccountinfo["channel"]
         self.captchaVerifier = captchaVerifier
         self.errlogger = errlogger
+        self.account = account
 
     async def login(self):
         while True:
-            resp = await login(self.account, self.pwd, self.captchaVerifier)
+            resp = await login(self.account, self.pwd, self.captchaVerifier, self.account)
             if resp["code"] == 0:
                 break
             await self.errlogger(resp["message"])
@@ -164,7 +165,7 @@ class pcrclient:
                 print(f"pcrclient: {apiurl} api failed {data}")
                 raise ApiException(data["message"], data["status"])
 
-            print(f"pcrclient: {apiurl} api called")
+            # print(f"pcrclient: {apiurl} api called")
             return data
         except:
             self.shouldLogin = True
@@ -193,7 +194,7 @@ class pcrclient:
                 await sleep(60)
 
         ver = manifest["required_manifest_ver"]
-        print(f"using manifest ver = {ver}")
+        # print(f"using manifest ver = {ver}")
         self.headers["MANIFEST-VER"] = str(ver)
         lres = await self.callapi(
             "/tool/sdk_login",
