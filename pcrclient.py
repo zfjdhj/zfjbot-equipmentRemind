@@ -65,9 +65,11 @@ class bsdkclient:
     async def login(self):
         while True:
             resp = await login(self.account, self.pwd, self.captchaVerifier, self.account)
+            print(f"{self.account}resp:", resp)
             if resp["code"] == 0:
+                await self.errlogger("登录成功", self.account)
                 break
-            await self.errlogger(resp["message"])
+            await self.errlogger(resp["message"], self.account)
 
         return resp["uid"], resp["access_key"]
 

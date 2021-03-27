@@ -13,6 +13,7 @@ plugin_path = os.path.dirname(__file__)
 
 client = None
 captcha_lck = Lock()
+captcha_lck_all = Lock()
 bot = get_bot()
 validate = None
 acfirst = False
@@ -36,7 +37,7 @@ with open(os.path.join(plugin_path, "account.json")) as fp:
 
 
 async def captchaVerifier(gt, challenge, userid, account):
-    global acfirst
+    global acfirst, auto_donation
     if not acfirst:
         await captcha_lck.acquire()
         acfirst = True
@@ -44,15 +45,21 @@ async def captchaVerifier(gt, challenge, userid, account):
         f"http://pcr.zfjdhj.cn防止腾讯检测/geetest/captcha/?captcha_type=1&challenge={challenge}&gt={gt}&userid={userid}&gs=1"
     )
     reply = f"猫猫({account})遇到了一个问题呢，请完成以下链接中的验证内容后将第一行validate=后面的内容复制，并用指令/pcrval xxxx将内容发送给机器人完成验证\n验证链接：{url}"
-    await captcha_lck.acquire()
+    # await captcha_lck_all.acquire()
+    await asyncio.sleep(3)
     await bot.send_private_msg(user_id=acinfo["admin"], message=f"{reply}")
     # 群内通知
     await bot.send_group_msg(group_id=account_json["group_id"], message=f"[CQ:at,qq={account_json['admin']}]\n{reply}")
+    auto_donation = False
+    await captcha_lck.acquire()
     return validate
 
 
-async def errlogger(msg):
-    await bot.send_private_msg(user_id=acinfo["admin"], message=f"猫猫登录错误：{msg}")
+async def errlogger(msg, account):
+    # await bot.send_private_msg(user_id=acinfo["admin"], message=f"猫猫({account})登录错误：{msg}")
+    await bot.send_group_msg(
+        group_id=account_json["group_id"], message=f"[CQ:at,qq={account_json['admin']}]\n猫猫({account})info：{msg}"
+    )
 
 
 acinfo_tmp = {
@@ -69,11 +76,16 @@ mclient = pcrclient(mbclient)
 async def validate(bot, ev):
     global validate
     validate = ev["match"].group(1)
-    captcha_lck.release()
-    await bot.send(ev, f"验证码设置为{validate}")
+    try:
+        while captcha_lck.locked:
+            captcha_lck.release()
+        await bot.send(ev, f"验证码设置为{validate}")
+    except Exception as e:
+        print(e)
+        await bot.send(ev, f"验证码设置为{validate}")
 
 
-async def check(client, ev) -> str:
+async def check(client: pcrclient, ev) -> str:
     while client.shouldLogin:
         await client.login()
     if os.path.exists(plugin_path + "/data.json"):
@@ -263,14 +275,16 @@ async def pcrf_equip_check(index: str) -> Tuple[str, str]:
     return index, donation_num
 
 
-@sv.scheduled_job("interval", minutes=1)
-# @sv.scheduled_job("interval", seconds=30)
+# @sv.scheduled_job("interval", minutes=5)
+@sv.scheduled_job("interval", seconds=30)
 @sv.on_fullmatch("equip check")
 async def equip_check(bot=get_bot(), ev={}):
     global auto_donation, reply, captcha_lck
     while mclient.shouldLogin:
         await mclient.login()
     qq_reply = (await check(mclient, ev))[1]
+    today_index = 0
+    # print(captcha_lck)
     if not auto_donation:
         res = await pcrf_equip_check("01")
         if res[1] == 0:
